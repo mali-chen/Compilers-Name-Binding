@@ -31,7 +31,8 @@ public class Sem3Visitor extends Visitor
     HashSet<String> unusedClasses;
 
     // set of unused local variables
-    HashMap<String> unusedLocals;
+    // We use a hashmap so we can store the position where we found it for the error message.
+    HashMap<String,Integer> unusedLocals;
 
     // stack of while/switch
     Stack<BreakTarget> breakTargetStack;
