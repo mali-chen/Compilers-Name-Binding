@@ -48,4 +48,56 @@ public class Sem1Visitor extends Visitor
         return null;
     }
 
+    @Override 
+    public Object visit(ClassDecl n){
+        // check for duplicate 
+        if(classEnv.containsKey(n.name)){
+            errorMsg.error(n.pos, CompError.DuplicateClass(n.name));
+        }
+        // register class name in gloabl enviroment
+        else{
+            classEnv.put(n.name, n);
+        }
+
+        ClassDecl savedClass = currentClass;
+        currentClass = n;
+        n.decls.accept(this);
+        currentClass = savedClass;
+
+        return null;
+    }
+
+    @Override
+    public Object visit(FieldDecl n){
+        // "length" is reserved
+        if(n.name.equals("length")){
+            errorMsg.error(n.pos, CompError.IllegalLength());
+        }
+        // check for duplicate
+        else if(currentClass.fieldEnv.containsKey(n.name)){
+            errorMsg.error(n.pos, CompError.DuplicateField(n.name));
+        }
+        // register class name in gloabl enviroment
+        else{
+            currentClass.fieldEnv.put(n.name, n);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Object visit(MethodDecl n){
+    // check for duplicate
+    if(currentClass.methodEnv.containsKey(n.name)){
+        errorMsg.error(n.pos, CompError.DuplicateMethod(n.name));
+    }
+    // register class name in gloabl enviroment
+    else{
+        n.classDecl = currentClass;
+        currentClass.methodEnv.put(n.name, n);
+    }
+
+    return null;
+    }
+
 }
