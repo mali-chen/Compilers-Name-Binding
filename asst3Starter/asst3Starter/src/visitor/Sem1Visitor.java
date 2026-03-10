@@ -1,8 +1,8 @@
 package visitor;
 
-import syntaxtree.*;
-import java.util.*;
 import errorMsg.*;
+import java.util.*;
+import syntaxtree.*;
 // The purpose of the Sem1Visitor class is to:
 // - enter each class declaration into the global environment
 //   - duplicate class names are detected

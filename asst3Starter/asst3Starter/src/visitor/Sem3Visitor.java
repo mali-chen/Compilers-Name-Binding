@@ -222,12 +222,96 @@ public Object visit(MethodDeclNonVoid n)
     public Object visit(Switch n){
         n.exp.accept(this);
         breakTargetStack.push(n);
-        n.stmts.accept(this);
-        
+
+        // first statement must be a label
+        if (n.stmts.isEmpty() || !(n.stmts.get(0) instanceof Label)){
+            errorMsg.error(n.pos, CompError.FirstLabelSwitch());
+        }
+
+        // last statement must be a break
+        if (n.stmts.isEmpty() || !(n.stmts.get(n.stmts.size() - 1) instanceof Break)){
+            errorMsg.error(n.pos, CompError.EndBreakSwitch());
+        }
+
+        boolean seenDefault  = false;
+        boolean prevWasBreak = false;
+        HashSet<Integer> seenKeys = new HashSet<>();
+
+        for (int i = 0; i < n.stmts.size(); i++)
+        {
+            Stmt s = n.stmts.get(i);
+
+            if (s instanceof Default){
+                if (seenDefault){
+                    errorMsg.error(s.pos, CompError.DuplicateDefaultSwitch());
+                }
+                seenDefault  = true;
+                prevWasBreak = false;
+            }
+            else if (s instanceof Case c){
+                // case expression must be a constant
+                if (!(c.exp instanceof IntLit)){
+                    errorMsg.error(c.pos, CompError.NonConstantCase());
+                }
+                else
+                {
+                    // no duplicate case values
+                    int val = ((IntLit) c.exp).val;
+                    if (seenKeys.contains(val)){
+                        errorMsg.error(c.pos, CompError.DuplicateKeySwitch());
+                    }
+                    else{
+                        seenKeys.add(val);
+                    }
+                }
+                prevWasBreak = false;
+            }
+            else if (s instanceof Break){
+                prevWasBreak = true;
+            }
+            else{
+                prevWasBreak = false;
+            }
+        }
+
+        // track variables declared in the current chunk
+        ArrayList<String> chunkVars = new ArrayList<>();
+
+        for (int i = 0; i < n.stmts.size(); i++)
+        {
+            Stmt s = n.stmts.get(i);
+
+            if (s instanceof Break)
+            {
+                // end of chunk, remove all variables declared in this chunk
+                for (String varName : chunkVars)
+                {
+                    localEnv.remove(varName);
+                }
+                chunkVars.clear();
+
+                // still visit the break for break link
+                s.accept(this);
+            }
+            else if (s instanceof LocalDeclStmt lds)
+            {
+                // visit the declaration for name resolution
+                s.accept(this);
+
+                // track this variable as belonging to the current chunk
+                chunkVars.add(lds.localVarDecl.name);
+            }
+            else
+            {
+                // visit normally for name resolution
+                s.accept(this);
+            }
+        }
+
         breakTargetStack.pop();
         return null;
     }
-    
+
     // break statement
     @Override
     public Object visit(Break n){
