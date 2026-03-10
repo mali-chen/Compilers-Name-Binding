@@ -205,10 +205,66 @@ public Object visit(MethodDeclNonVoid n)
     public Object visit(Switch n){
         n.exp.accept(this);
         breakTargetStack.push(n);
+
+        // switch body must not be empty and 1st stmt must be a label
+        if(n.stmts.isEmpty() || !(n.stmts.get(0) instanceof Label)){
+            errorMsg.error(n.pos, CompError.FirstLabelSwitch());
+        }
+
+        // last stmt must be a break
+         if (n.stmts.size() == 0 || !(n.stmts.get(n.stmts.size() - 1) instanceof Break)){
+            errorMsg.error(n.pos, CompError.EndBreakSwitch());
+        }
+        
+        boolean seenDefault = false; // for DuplicateDefaultSwitch
+        boolean prevWasBreak = false; // for LabelAfterBreakSwitch
+        HashSet<Integer> seenKeys = new HashSet<>(); // for DuplicateKeySwitch
+
+        for(int i = 0; i < n.stmts.size(); i++){
+            Stmt s = n.stmts.get(i);
+
+            // stmt after a break must be a label
+            if(prevWasBreak && !(s instanceof Label)){
+                errorMsg.error(s.pos, CompError.LabelAfterBreakSwitch());         
+            }
+            if(s instanceof Default){
+                // only 1 default allowed
+                if(seenDefault){
+                    errorMsg.error(s.pos, CompError.DuplicateDefaultSwitch());
+                }
+                seenDefault = true;
+                prevWasBreak = false;
+            }
+            else if(s instanceof Case c){
+                // case expression must be a constant
+                if(!(c.exp instanceof IntLit)){
+                    errorMsg.error(c.pos, CompError.NonConstantCase());
+                }
+                else{
+                    // no duplicate case values
+                    int val = ((IntLit) c.exp).val;
+                    if(seenKeys.contains(val)){
+                        errorMsg.error(c.pos, CompError.DuplicateKeySwitch());
+                    }
+                    else{
+                        seenKeys.add(val);
+                    }
+                }
+                prevWasBreak = false;
+            }
+            else if(s instanceof Break){
+                prevWasBreak = true;
+            }
+            else{
+                prevWasBreak = false;
+            }
+        }
         n.stmts.accept(this);
+        
         breakTargetStack.pop();
         return null;
     }
+    
 
     // break statement
     @Override
