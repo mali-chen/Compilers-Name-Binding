@@ -69,17 +69,8 @@ public class Sem3Visitor extends Visitor
         // save outer scope and create a fresh local environment for this method
         HashMap<String,VarDecl> savedEnv = localEnv;
         localEnv = new HashMap<>();
+        init = new HashSet<>();
 
-        // reset initialized varible tracking
-        init = new HashSet<String>();
-
-        // params are always initialized 
-        for(Object obj : n.params){
-            ParamDecl p = (ParamDecl) obj;
-            init.add(p.name);
-        }
-        
-        
         // load all fields from this class and its superclasses
         ClassDecl c = currentClass;
         ArrayList<ClassDecl> chain = new ArrayList<>();
@@ -98,6 +89,7 @@ public class Sem3Visitor extends Visitor
         // add parameters to local scope
         for(Object obj : n.params){
             ParamDecl p = (ParamDecl) obj;
+            p.type.accept(this);
             VarDecl existing = localEnv.get(p.name);
             // check for duplicates
             if (existing != null && !(existing instanceof FieldDecl)){
@@ -105,6 +97,7 @@ public class Sem3Visitor extends Visitor
             }
             else{
                 localEnv.put(p.name, p);
+                init.add(p.name);
             }
         }
         // visit all statements in method body
@@ -116,39 +109,41 @@ public class Sem3Visitor extends Visitor
     }
     
     @Override
-public Object visit(MethodDeclNonVoid n)
-{
-    n.rtnType.accept(this);
-
-     // save the outer scope 
-    HashMap<String,VarDecl> savedEnv = localEnv;
-    localEnv = new HashMap<>();
-
-    // loading fields into localEnv so subclass fields shadow superclass fields
-    ClassDecl c = currentClass;
-    ArrayList<ClassDecl> chain = new ArrayList<>();
-    while (c != null) { chain.add(0, c); c = c.superLink; }
-    for (ClassDecl cls : chain)
-        for (FieldDecl f : cls.fieldEnv.values())
-            localEnv.put(f.name, f);
-
-     // add each formal parameter to scope
-    for (Object obj : n.params)
+    public Object visit(MethodDeclNonVoid n)
     {
-        ParamDecl p = (ParamDecl) obj;
-        VarDecl existing = localEnv.get(p.name);
-        if (existing != null && !(existing instanceof FieldDecl))
-            errorMsg.error(p.pos, CompError.DuplicateVariable(p.name));
-        else
-            localEnv.put(p.name, p);
+        n.rtnType.accept(this);
+
+        // save the outer scope 
+        HashMap<String,VarDecl> savedEnv = localEnv;
+        localEnv = new HashMap<>();
+        init = new HashSet<>();
+
+        // loading fields into localEnv so subclass fields shadow superclass fields
+        ClassDecl c = currentClass;
+        ArrayList<ClassDecl> chain = new ArrayList<>();
+        while (c != null) { chain.add(0, c); c = c.superLink; }
+        for (ClassDecl cls : chain)
+            for (FieldDecl f : cls.fieldEnv.values())
+                localEnv.put(f.name, f);
+
+        // add each formal parameter to scope
+        for (Object obj : n.params)
+        {
+            ParamDecl p = (ParamDecl) obj;
+            VarDecl existing = localEnv.get(p.name);
+            if (existing != null && !(existing instanceof FieldDecl))
+                errorMsg.error(p.pos, CompError.DuplicateVariable(p.name));
+            else
+                localEnv.put(p.name, p);
+                init.add(p.name);
+        }
+
+        n.stmts.accept(this);
+        n.rtnExp.accept(this);  
+
+        localEnv = savedEnv;
+        return null;
     }
-
-    n.stmts.accept(this);
-    n.rtnExp.accept(this);  
-
-    localEnv = savedEnv;
-    return null;
-}
 
     @Override
     public Object visit(IDType n){
@@ -173,12 +168,10 @@ public Object visit(MethodDeclNonVoid n)
             errorMsg.error(n.pos, CompError.UndefinedVariable(n.name));
         }
         else{
-            //  only check locals and params
-            if(!(varD instanceof FieldDecl) && !init.contains(n.name)){
+            n.link = varD;
+            // check if local/param was initialized 
+            if (!(varD instanceof FieldDecl) && init != null && !init.contains(n.name)){
                 errorMsg.error(n.pos, CompError.UninitializedVariable(n.name));
-            }
-            else{
-                n.link = varD;
             }
         }
         return null;
@@ -187,7 +180,6 @@ public Object visit(MethodDeclNonVoid n)
     @Override
     public Object visit(LocalVarDecl n){
         // visit initializer first 
-        n.initExp.accept(this);
         n.type.accept(this);
 
         if (localEnv.containsKey(n.name)){
@@ -202,8 +194,13 @@ public Object visit(MethodDeclNonVoid n)
         }
         else{
             localEnv.put(n.name, n);
-            init.add(n.name);
         }
+        
+        n.initExp.accept(this);
+
+        // mark as initialized
+        if (init != null) init.add(n.name);
+
         return null;
     }
 
