@@ -30,7 +30,7 @@ public class Sem2Visitor extends Visitor
             visit(n);
         }
 
-        // cycle deteftion over same list
+        // cycle detection over same list
         for(ClassDecl n : p.classDecls){
             detectCycle(n);
         }
@@ -65,7 +65,7 @@ public class Sem2Visitor extends Visitor
     }
 
     private void detectCycle(ClassDecl n){
-        HashSet<ClassDecl> visited = new HashSet<ClassDecl>();
+        HashSet<ClassDecl> visited = new HashSet<>();
         ClassDecl curr = n;
 
         while(curr != null && !curr.superName.equals("")){

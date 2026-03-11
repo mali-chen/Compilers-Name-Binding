@@ -77,7 +77,7 @@ public class Sem1Visitor extends Visitor
         else if(currentClass.fieldEnv.containsKey(n.name)){
             errorMsg.error(n.pos, CompError.DuplicateField(n.name));
         }
-        // register class name in gloabl enviroment
+        // register class name in global enviroment
         else{
             currentClass.fieldEnv.put(n.name, n);
         }
@@ -91,7 +91,7 @@ public class Sem1Visitor extends Visitor
     if(currentClass.methodEnv.containsKey(n.name)){
         errorMsg.error(n.pos, CompError.DuplicateMethod(n.name));
     }
-    // register class name in gloabl enviroment
+    // register class name in global enviroment
     else{
         n.classDecl = currentClass;
         currentClass.methodEnv.put(n.name, n);

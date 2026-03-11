@@ -50,7 +50,7 @@ public class Sem3Visitor extends Visitor
         breakTargetStack = new Stack<BreakTarget>();
     }
 
-    @Override
+ @Override
     public Object visit(ClassDecl n){
         // track the current class we're inside
         ClassDecl saved = currentClass;
@@ -69,6 +69,8 @@ public class Sem3Visitor extends Visitor
         // save outer scope and create a fresh local environment for this method
         HashMap<String,VarDecl> savedEnv = localEnv;
         localEnv = new HashMap<>();
+
+        // track which variables are assigned a value
         init = new HashSet<>();
 
         // load all fields from this class and its superclasses
@@ -109,13 +111,14 @@ public class Sem3Visitor extends Visitor
     }
     
     @Override
-    public Object visit(MethodDeclNonVoid n)
-    {
+    public Object visit(MethodDeclNonVoid n){
         n.rtnType.accept(this);
 
         // save the outer scope 
         HashMap<String,VarDecl> savedEnv = localEnv;
         localEnv = new HashMap<>();
+
+        // track which variables are assigned a value
         init = new HashSet<>();
 
         // loading fields into localEnv so subclass fields shadow superclass fields
@@ -127,8 +130,7 @@ public class Sem3Visitor extends Visitor
                 localEnv.put(f.name, f);
 
         // add each formal parameter to scope
-        for (Object obj : n.params)
-        {
+        for (Object obj : n.params){
             ParamDecl p = (ParamDecl) obj;
             VarDecl existing = localEnv.get(p.name);
             if (existing != null && !(existing instanceof FieldDecl))
@@ -150,7 +152,7 @@ public class Sem3Visitor extends Visitor
          // look up the class name in the global class environment
         ClassDecl classD = classEnv.get(n.name);
         if(classD == null){
-            // the type name was never declared, error message
+            // the type name was never declared
             errorMsg.error(n.pos, CompError.UndefinedClass(n.name));
         }
         else{
@@ -164,7 +166,7 @@ public class Sem3Visitor extends Visitor
         // look up the variable name in the current local scope
         VarDecl varD = localEnv.get(n.name);
         if(varD == null){
-             // the variable was never declared in any reachable scope, error message
+             // the variable was never declared in any reachable scope
             errorMsg.error(n.pos, CompError.UndefinedVariable(n.name));
         }
         else{
@@ -179,7 +181,6 @@ public class Sem3Visitor extends Visitor
 
     @Override
     public Object visit(LocalVarDecl n){
-        // visit initializer first 
         n.type.accept(this);
 
         if (localEnv.containsKey(n.name)){
@@ -234,8 +235,7 @@ public class Sem3Visitor extends Visitor
         boolean prevWasBreak = false;
         HashSet<Integer> seenKeys = new HashSet<>();
 
-        for (int i = 0; i < n.stmts.size(); i++)
-        {
+        for (int i = 0; i < n.stmts.size(); i++){
             Stmt s = n.stmts.get(i);
 
             if (s instanceof Default){
@@ -274,33 +274,24 @@ public class Sem3Visitor extends Visitor
         // track variables declared in the current chunk
         ArrayList<String> chunkVars = new ArrayList<>();
 
-        for (int i = 0; i < n.stmts.size(); i++)
-        {
+        for (int i = 0; i < n.stmts.size(); i++){
             Stmt s = n.stmts.get(i);
 
-            if (s instanceof Break)
-            {
+            if (s instanceof Break){
                 // end of chunk, remove all variables declared in this chunk
-                for (String varName : chunkVars)
-                {
+                for (String varName : chunkVars){
                     localEnv.remove(varName);
                 }
                 chunkVars.clear();
-
-                // still visit the break for break link
                 s.accept(this);
             }
-            else if (s instanceof LocalDeclStmt lds)
-            {
-                // visit the declaration for name resolution
+            else if (s instanceof LocalDeclStmt lds){
                 s.accept(this);
 
                 // track this variable as belonging to the current chunk
                 chunkVars.add(lds.localVarDecl.name);
             }
-            else
-            {
-                // visit normally for name resolution
+            else{
                 s.accept(this);
             }
         }
@@ -309,7 +300,7 @@ public class Sem3Visitor extends Visitor
         return null;
     }
 
-    // break statement
+    // break statement for switch
     @Override
     public Object visit(Break n){
         if(breakTargetStack.isEmpty()){
@@ -321,6 +312,7 @@ public class Sem3Visitor extends Visitor
         return null;
     }
 
+    // for switch label
     @Override
     public Object visit(Case n){
         // go through stack to find nearest switch
@@ -334,6 +326,7 @@ public class Sem3Visitor extends Visitor
         return null;
     }
 
+    // for switch label
     @Override
     public Object visit(Default n){
         // go through stack to find nearest switch
